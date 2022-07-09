@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+
+import curses
+import rospy
+import signal
+import time
+
+from roschat_msgs.msg import RosChat
+
+def say_callback(data, node):
+    node.say_callback(data)
+
+class RoschatClientNode:
+    def __init__(self):
+        rospy.init_node("roschat_client", anonymous=True)
+
+        self.channel=rospy.get_param("~channel", "chat")
+        self.name=rospy.get_param("~name", "anonymous")
+
+        self.chatlog = []
+        self.input_buffer = ""
+        self.prompt = "?> "
+
+        self.stdscr = curses.initscr()
+        curses.noecho()
+        curses.cbreak()
+        self.stdscr.keypad(True)
+
+        signal.signal(signal.SIGINT, self.shutdown)
+
+    def layout(self):
+        log_hwyx = (curses.LINES-3, curses.COLS, 0, 0)
+        input_yx = (curses.LINES-1, 0)
+
+        self.win_log = self.stdscr.derwin(*log_hwyx)
+        self.win_input = self.stdscr.derwin(*input_yx)
+        self.stdscr.refresh()
+
+        self.redraw()
+
+    def redraw(self):
+        h, w = self.stdscr.getmaxyx()
+
+        self.stdscr.clear()
+        self.stdscr.hline(h-2, 0, '-', w)
+
+        self.redraw_input()
+        self.redraw_log()
+
+    def redraw_input(self):
+        self.win_input.clear()
+        self.win_input.addstr(0, 0, "{0}{1}".format(self.prompt, self.input_buffer))
+        self.win_input.refresh()
+        self.win_input.cursyncup()
+
+    def redraw_log(self):
+        self.win_log.clear()
+
+        h, w = self.win_log.getmaxyx()
+        j = len(self.chatlog) - h
+        if j < 0:
+            j = 0
+
+        for i in range(min(len(self.chatlog), h)):
+            self.win_log.addstr(i, 0, self.chatlog[j])
+            j = j+1
+
+        self.win_log.refresh()
+        self.win_input.cursyncup()
+
+    def read_input(self):
+        self.redraw_input()
+        last = -1
+        while last != ord("\n"):
+            last = self.stdscr.getch()
+
+            if last == ord("\n"):
+                tmp = self.input_buffer
+                self.input_buffer = ""
+                self.redraw_input()
+                return tmp
+
+            elif last == curses.KEY_BACKSPACE or last == 127:
+                if len(self.input_buffer) > 0:
+                    self.input_buffer = self.input_buffer[:-1]
+
+            elif last == curses.KEY_RESIZE:
+                # TODO
+                pass
+
+            elif last >= ord(' ') and last <= ord('~'):
+                self.input_buffer = self.input_buffer + chr(last)
+
+            self.redraw_input()
+
+    def run(self):
+        self.chat_pub = rospy.Publisher("/roschat/{0}".format(self.channel), RosChat, queue_size=1)
+        self.chat_sub = rospy.Subscriber("/roschat/{0}".format(self.channel), RosChat, say_callback, callback_args=self)
+
+        self.layout()
+
+        while not rospy.is_shutdown():
+            try:
+                txt = self.read_input()
+                if txt.lower() == "!q" or txt.lower() == "!quit":
+                    break;
+
+                msg = RosChat()
+                msg.sender = self.name
+                msg.message = txt
+                self.chat_pub.publish(msg)
+            except:
+                break
+
+        self.shutdown()
+
+    def shutdown(self):
+        curses.nocbreak()
+        self.stdscr.keypad(False)
+        curses.echo()
+        curses.endwin()
+
+    def say_callback(self, data):
+        chat = "{0} {1}: {2}".format(time.strftime("%H:%M:%S"), data.sender, data.message)
+        self.chatlog.append(chat)
+
+        # don't keep more than a few hundred messages around because we don't have scrolling implemented at all yet
+        while len(self.chatlog) > 500:
+            self.chatlog.pop(0)
+
+        self.redraw_log()
+
+def main(scr):
+    scr.clear()
+    node = RoschatClientNode()
+    node.run()
+
+if __name__=="__main__":
+    curses.wrapper(main)

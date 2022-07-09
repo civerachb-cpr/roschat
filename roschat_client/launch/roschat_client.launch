@@ -1,0 +1,12 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="name" default="$(env USERNAME)" />
+  <arg name="channel" default="chat" />
+
+  <group ns="/roschat/$(arg channel)">
+    <node pkg="roschat_client" type="roschat_client_node" name="$(anon roschat_client)" output="screen">
+      <param name="channel" value="$(arg channel)" />
+      <param name="name" value="$(arg name)" />
+    </node>
+  </group>
+</launch>
