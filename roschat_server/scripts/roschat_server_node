@@ -6,24 +6,31 @@ import time
 from roschat_msgs.msg import *
 from std_msgs.msg import String
 
-def say_callback(data, node):
-    node.say_callback(data)
+def say_callback(data, args):
+    node, channel = args
+    node.say_callback(data, channel)
 
 class RosChatServerNode:
     def __init__(self):
         rospy.init_node("roschat_server_node")
-        self.channel = rospy.get_param("~channel", "chat")
+        self.channels = rospy.get_param("~channels", ["general"])
 
     def run(self):
-        self.chat_sub = rospy.Subscriber(self.channel, RosChat, say_callback, callback_args=self)
-        self.chat_repub = rospy.Publisher("{0}/lurk".format(self.channel), String, queue_size=10)
+        self.chat_subs = {}
+        self.chat_repubs = {}
+
+        for ch in self.channels:
+            main = rospy.Subscriber(ch, RosChat, say_callback, callback_args=(self, ch))
+            lurk = rospy.Publisher("{0}/lurk".format(ch), String, queue_size=10)
+            self.chat_subs[ch] = main
+            self.chat_repubs[ch] = lurk
 
         rospy.spin()
 
-    def say_callback(self, data):
+    def say_callback(self, data, channel):
         msg = String()
         msg.data = "{0} {1}: {2}".format(time.strftime("%Y-%m-%d %H:%M:%S"), data.sender, data.message)
-        self.chat_repub.publish(msg)
+        self.chat_repubs[channel].publish(msg)
 
 if __name__=="__main__":
     node = RosChatServerNode()

@@ -1,10 +1,10 @@
 <?xml version="1.0" ?>
 <launch>
-  <arg name="channel" default="chat" />
+  <arg name="channels" default="$(find roschat_server)/config/channels.yaml" />
 
   <group ns="roschat">
-    <node pkg="roschat_server" type="roschat_server_node" name="roschat_channel_$(arg channel)">
-      <param name="channel" value="$(arg channel)" />
+    <node pkg="roschat_server" type="roschat_server_node" name="roschat_server_node">
+      <rosparam command="load" file="$(arg channels)" />
     </node>
   </group>
 </launch>

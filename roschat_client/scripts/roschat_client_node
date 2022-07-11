@@ -14,7 +14,7 @@ class RoschatClientNode:
     def __init__(self):
         rospy.init_node("roschat_client", anonymous=True)
 
-        self.channel=rospy.get_param("~channel", "chat")
+        self.channel=rospy.get_param("~channel", "general")
         self.name=rospy.get_param("~name", "anonymous")
 
         self.chatlog = []
@@ -56,8 +56,8 @@ class RoschatClientNode:
         self.win_header.clear()
         h, w = self.stdscr.getmaxyx()
         header = " ROS Chat | {0} | {1} ".format(self.name, self.channel)
-        bars = "+" * int((w - len(header)) / 2 - 2)
-        header = "{0} {1} {0}".format(bars, header)
+        bars = "+" * int((w - len(header)) / 2)
+        header = "{0} {1} {0}".format(bars, header)[0:w]
         self.win_header.addstr(0, 0, header)
         self.win_header.refresh()
 
